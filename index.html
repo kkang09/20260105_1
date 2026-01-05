@@ -1,59 +1,183 @@
-<div>Teachable Machine Image Model</div>
-<button type="button" onclick="init()">Start</button>
-<div id="webcam-container"></div>
-<div id="label-container"></div>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Posture Checker</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-<script type="text/javascript">
-    // More API functions here:
-    // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
 
-    // the link to your model provided by Teachable Machine export panel
-    const URL = "https://teachablemachine.withgoogle.com/models/VwmBUFBZH/";
-
-    let model, webcam, labelContainer, maxPredictions;
-
-    // Load the image model and setup the webcam
-    async function init() {
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
-
-        // load the model and metadata
-        // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
-        // or files from your local hard drive
-        // Note: the pose library adds "tmImage" object to your window (window.tmImage)
-        model = await tmImage.load(modelURL, metadataURL);
-        maxPredictions = model.getTotalClasses();
-
-        // Convenience function to setup a webcam
-        const flip = true; // whether to flip the webcam
-        webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
-        await webcam.setup(); // request access to the webcam
-        await webcam.play();
-        window.requestAnimationFrame(loop);
-
-        // append elements to the DOM
-        document.getElementById("webcam-container").appendChild(webcam.canvas);
-        labelContainer = document.getElementById("label-container");
-        for (let i = 0; i < maxPredictions; i++) { // and class labels
-            labelContainer.appendChild(document.createElement("div"));
-        }
+<style>
+    * {
+        box-sizing: border-box;
+        font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
     }
 
-    async function loop() {
-        webcam.update(); // update the webcam frame
-        await predict();
-        window.requestAnimationFrame(loop);
+    body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        transition: background 0.5s ease;
     }
 
-    // run the webcam image through the image model
-    async function predict() {
-        // predict can take in an image, video or canvas html element
-        const prediction = await model.predict(webcam.canvas);
-        for (let i = 0; i < maxPredictions; i++) {
-            const classPrediction =
-                prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-            labelContainer.childNodes[i].innerHTML = classPrediction;
-        }
+    body.good {
+        background: linear-gradient(135deg, #43cea2, #185a9d);
     }
+
+    body.bad {
+        background: linear-gradient(135deg, #ff416c, #ff4b2b);
+        animation: shake 0.3s ease-in-out infinite alternate;
+    }
+
+    @keyframes shake {
+        from { transform: translateX(-2px); }
+        to { transform: translateX(2px); }
+    }
+
+    .card {
+        background: rgba(255,255,255,0.95);
+        width: 360px;
+        border-radius: 20px;
+        padding: 24px;
+        text-align: center;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+
+    h1 {
+        margin: 0 0 16px;
+        font-size: 22px;
+    }
+
+    button {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border: none;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 12px;
+        font-size: 16px;
+        cursor: pointer;
+        width: 100%;
+        margin-bottom: 16px;
+    }
+
+    button:hover {
+        opacity: 0.9;
+    }
+
+    #webcam-container canvas {
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        margin: 12px 0;
+        border: 6px solid #eee;
+    }
+
+    .label {
+        margin-top: 12px;
+        text-align: left;
+    }
+
+    .row {
+        margin-bottom: 10px;
+    }
+
+    .row span {
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .bar {
+        height: 10px;
+        background: #eee;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-top: 4px;
+    }
+
+    .bar-inner {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        transition: width 0.3s ease;
+    }
+</style>
+</head>
+
+<body>
+<div class="card">
+    <h1>🧍 자세 인식 시스템</h1>
+    <button onclick="init()">Start</button>
+
+    <div id="webcam-container"></div>
+
+    <div class="label">
+        <div class="row">
+            <span id="good-text">바른자세: 0%</span>
+            <div class="bar"><div id="good-bar" class="bar-inner"></div></div>
+        </div>
+        <div class="row">
+            <span id="bad-text">안좋은자세: 0%</span>
+            <div class="bar"><div id="bad-bar" class="bar-inner"></div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const URL = "https://teachablemachine.withgoogle.com/models/VwmBUFBZH/";
+
+let model, webcam;
+
+async function init() {
+    const modelURL = URL + "model.json";
+    const metadataURL = URL + "metadata.json";
+
+    model = await tmImage.load(modelURL, metadataURL);
+
+    webcam = new tmImage.Webcam(200, 200, true);
+    await webcam.setup();
+    await webcam.play();
+    window.requestAnimationFrame(loop);
+
+    document.getElementById("webcam-container").appendChild(webcam.canvas);
+}
+
+async function loop() {
+    webcam.update();
+    await predict();
+    window.requestAnimationFrame(loop);
+}
+
+async function predict() {
+    const prediction = await model.predict(webcam.canvas);
+
+    let good = 0;
+    let bad = 0;
+
+    prediction.forEach(p => {
+        if (p.className.includes("바른")) good = p.probability;
+        if (p.className.includes("안")) bad = p.probability;
+    });
+
+    const goodPercent = Math.round(good * 100);
+    const badPercent = Math.round(bad * 100);
+
+    document.getElementById("good-text").innerText = `바른자세: ${goodPercent}%`;
+    document.getElementById("bad-text").innerText = `안좋은자세: ${badPercent}%`;
+
+    document.getElementById("good-bar").style.width = goodPercent + "%";
+    document.getElementById("bad-bar").style.width = badPercent + "%";
+
+    document.body.classList.remove("good", "bad");
+
+    if (goodPercent >= 50) {
+        document.body.classList.add("good");
+    } else if (badPercent >= 50) {
+        document.body.classList.add("bad");
+    }
+}
 </script>
+</body>
+</html>
